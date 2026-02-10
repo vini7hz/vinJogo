@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Dodge - Ultra</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #0a0a1a; font-family: 'Press Start 2P', cursive; touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent;}
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap'); /* Fonte de arcade */
+        canvas { display: block; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #00ffcc; font-size: 18px; pointer-events: none; text-shadow: 0 0 8px #00ffcc; display: flex; align-items: center; }
+        #ui span { margin-left: 5px; }
+        #lives { margin-left: 20px; display: flex; align-items: center; }
+        .heart { width: 20px; height: 20px; background-color: #ff0077; clip-path: path("M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"); margin-right: 5px; box-shadow: 0 0 5px #ff0077; }
+
+        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; text-align: center; display: none; background: rgba(0,0,0,0.8); padding: 30px; border-radius: 10px; border: 2px solid #00ffcc; box-shadow: 0 0 20px #00ffcc; }
+        #msg h1 { color: #ff0077; font-size: 36px; text-shadow: 0 0 15px #ff0077; margin-bottom: 20px; }
+        #msg p { color: #00ffcc; font-size: 16px; margin-bottom: 30px; }
+        button { padding: 15px 35px; font-size: 20px; background: #00ffcc; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; color: #111; font-weight: bold; text-shadow: none; box-shadow: 0 0 10px #00ffcc; transition: all 0.2s ease-in-out; font-family: 'Press Start 2P', cursive; }
+        button:hover { background: #00e6b8; box-shadow: 0 0 20px #00ffcc; transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+
+    <div id="ui">Score: <span id="score">0</span> 
+        <div id="lives">Lives: <div class="heart"></div><div class="heart"></div><div class="heart"></div></div>
+    </div>
+    <div id="msg">
+        <h1>GAME OVER!</h1>
+        <p>Sua Pontuação Final: <span id="finalScore">0</span></p>
+        <button onclick="resetGame()">Jogar de Novo</button>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <audio id="hitSound" src="https://www.soundjay.com/buttons/beep-07.mp3" preload="auto"></audio>
+    <audio id="powerupSound" src="https://www.soundjay.com/buttons/button-10.mp3" preload="auto"></audio>
+    <audio id="gameOverSound" src="https://www.soundjay.com/misc/fail-buzzer-01.mp3" preload="auto"></audio>
+    <audio id="scoreSound" src="https://www.soundjay.com/buttons/button-09.mp3" preload="auto"></audio>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const finalScoreElement = document.getElementById('finalScore');
+        const msg = document.getElementById('msg');
+        const livesElement = document.getElementById('lives');
+
+        const hitSound = document.getElementById('hitSound');
+        const powerupSound = document.getElementById('powerupSound');
+        const gameOverSound = document.getElementById('gameOverSound');
+        const scoreSound = document.getElementById('scoreSound');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let score = 0;
+        let lives = 3;
+        let gameActive = true;
+        let speed = 1; // Velocidade inicial dos inimigos
+        const maxSpeed = 5; // Velocidade máxima
+        const acceleration = 0.005; // Aceleração do jogo
+
+        // Partículas de fundo
+        const particles = [];
+        const numParticles = 50;
+
+        function createParticles() {
+            for (let i = 0; i < numParticles; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2 + 1,
+                    speed: Math.random() * 0.5 + 0.1,
+                    color: `rgba(0, 255, 204, ${Math.random() * 0.5 + 0.2})`
+                });
+            }
+        }
+        createParticles();
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+                p.y += p.speed;
+                if (p.y > canvas.height) {
+                    p.y = -p.size;
+                    p.x = Math.random() * canvas.width;
+                }
+            });
+        }
+
+        // Jogador
+        const player = {
+            x: canvas.width / 2 - 25,
+            y: canvas.height - 100,
+            w: 50,
+            h: 50,
+            color: '#00ffcc',
+            hasShield: false,
+            shieldTimer: 0,
+            shieldDuration: 300 // 5 segundos * 60 frames por segundo
+        };
+
+        // Inimigos
+        const enemies = [];
+        const powerups = [];
+
+        function spawnEnemy() {
+            if (!gameActive) return;
+            const size = Math.random() * (50 - 20) + 20;
+            enemies.push({
+                x: Math.random() * (canvas.width - size),
+                y: -size,
+                w: size,
+                h: size,
+                color: '#ff4444',
+                glow: '#ff0077',
+                hit: false // Para visual de hit
+            });
+            setTimeout(spawnEnemy, Math.max(200, 800 - score * 5)); // Frequência aumenta com a pontuação
+        }
+
+        function spawnPowerup() {
+            if (!gameActive) return;
+            if (Math.random() < 0.3) { // 30% de chance de spawnar um power-up
+                const size = 30;
+                powerups.push({
+                    x: Math.random() * (canvas.width - size),
+                    y: -size,
+                    w: size,
+                    h: size,
+                    color: '#ffff00',
+                    glow: '#ffee00',
+                    type: 'shield'
+                });
+            }
+            setTimeout(spawnPowerup, Math.random() * 10000 + 5000); // Entre 5 e 15 segundos
+        }
+
+        // Controle Touch
+        let touchStartX = 0;
+        let playerStartX = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            playerStartX = player.x;
+            e.preventDefault(); // Evita scroll da página
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!gameActive) return;
+            const touchX = e.touches[0].clientX;
+            const deltaX = touchX - touchStartX;
+            player.x = playerStartX + deltaX;
+
+            // Limitar jogador dentro da tela
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+            e.preventDefault(); // Evita scroll da página
+        });
+
+        // Controle Mouse (para teste no PC)
+        canvas.addEventListener('mousemove', (e) => {
+            if (!gameActive) return;
+            player.x = e.clientX - player.w / 2;
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+        });
+
+        function updateLivesDisplay() {
+            livesElement.innerHTML = 'Lives: ';
+            for (let i = 0; i < lives; i++) {
+                const heart = document.createElement('div');
+                heart.classList.add('heart');
+                livesElement.appendChild(heart);
+            }
+        }
+
+        function update() {
+            if (!gameActive) {
+                // Se o jogo não está ativo, ainda desenha partículas para o efeito de fundo
+                drawBackground();
+                drawParticles();
+                requestAnimationFrame(update);
+                return;
+            }
+
+            // Atualiza velocidade global do jogo
+            if (speed < maxSpeed) {
+                speed += acceleration;
+            }
+
+            enemies.forEach((enemy, index) => {
+                enemy.y += speed;
+
+                // Colisão com o jogador
+                if (player.x < enemy.x + enemy.w &&
+                    player.x + player.w > enemy.x &&
+                    player.y < enemy.y + enemy.h &&
+                    player.y + player.h > enemy.y) {
+                    
+                    if (player.hasShield) {
+                        enemies.splice(index, 1); // Destrói o inimigo
+                        hitSound.play();
+                    } else {
+                        enemy.hit = true; // Marca para animação de hit
+                        enemies.splice(index, 1);
+                        loseLife();
+                        hitSound.play();
+                    }
+                }
+
+                // Remove inimigos que saíram da tela
+                if (enemy.y > canvas.height) {
+                    enemies.splice(index, 1);
+                    score++;
+                    scoreElement.innerText = score;
+                    scoreSound.currentTime = 0;
+                    scoreSound.play();
+                }
+            });
+
+            powerups.forEach((powerup, index) => {
+                powerup.y += speed * 0.7; // Power-ups caem um pouco mais devagar
+
+                // Colisão com o jogador
+                if (player.x < powerup.x + powerup.w &&
+                    player.x + player.w > powerup.x &&
+                    player.y < powerup.y + powerup.h &&
+                    player.y + player.h > powerup.y) {
+                    
+                    if (powerup.type === 'shield') {
+                        player.hasShield = true;
+                        player.shieldTimer = player.shieldDuration;
+                        powerupSound.currentTime = 0;
+                        powerupSound.play();
+                    }
+                    powerups.splice(index, 1);
+                }
+
+                // Remove power-ups que saíram da tela
+                if (powerup.y > canvas.height) {
+                    powerups.splice(index, 1);
+                }
+            });
+
+            // Atualiza o escudo
+            if (player.hasShield) {
+                player.shieldTimer--;
+                if (player.shieldTimer <= 0) {
+                    player.hasShield = false;
+                }
+            }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function loseLife() {
+            lives--;
+            updateLivesDisplay();
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
+
+        function drawBackground() {
+            ctx.fillStyle = '#0a0a1a'; // Fundo escuro
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function draw() {
+            drawBackground();
+            drawParticles();
+
+            // Desenha Jogador
+            ctx.fillStyle = player.color;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = player.color;
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+
+            // Desenha Escudo
+            if (player.hasShield) {
+                const shieldColor = `rgba(173, 216, 230, ${player.shieldTimer / player.shieldDuration * 0.7 + 0.1})`; // Azul claro, pulsando
+                ctx.beginPath();
+                ctx.arc(player.x + player.w / 2, player.y + player.h / 2, player.w * 0.9, 0, Math.PI * 2);
+                ctx.strokeStyle = shieldColor;
+                ctx.lineWidth = 5;
+                ctx.shadowColor = shieldColor;
+                ctx.shadowBlur = 30;
+                ctx.stroke();
+            }
+
+            // Desenha Inimigos
+            enemies.forEach(enemy => {
+                ctx.fillStyle = enemy.color;
+                ctx.shadowColor = enemy.glow;
+                ctx.shadowBlur = 15;
+                ctx.fillRect(enemy.x, enemy.y, enemy.w, enemy.h);
+
+                if (enemy.hit) { // Efeito de hit temporário
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fillRect(enemy.x, enemy.y, enemy.w, enemy.h);
+                }
+            });
+
+            // Desenha Power-ups
+            powerups.forEach(powerup => {
+                ctx.fillStyle = powerup.color;
+                ctx.shadowColor = powerup.glow;
+                ctx.shadowBlur = 15;
+                
+                // Desenha um formato de estrela para o escudo
+                if (powerup.type === 'shield') {
+                    drawStar(ctx, powerup.x + powerup.w / 2, powerup.y + powerup.h / 2, 5, powerup.w / 2, powerup.w / 4);
+                } else {
+                    ctx.fillRect(powerup.x, powerup.y, powerup.w, powerup.h);
+                }
+            });
+
+            // Reseta sombra para outros elementos
+            ctx.shadowBlur = 0;
+        }
+
+        // Função para desenhar uma estrela
+        function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = Math.PI / 2 * 3;
+            let x = cx;
+            let y = cy;
+            let step = Math.PI / spikes;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+
+
+        function gameOver() {
+            gameActive = false;
+            finalScoreElement.innerText = score;
+            msg.style.display = 'block';
+            gameOverSound.play();
+        }
+
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            speed = 3;
+            player.hasShield = false;
+            player.shieldTimer = 0;
+            enemies.length = 0;
+            powerups.length = 0;
+            gameActive = true;
+            scoreElement.innerText = score;
+            msg.style.display = 'none';
+            updateLivesDisplay();
+            player.x = canvas.width / 2 - player.w / 2; // Reposiciona jogador
+            
+            // Reinicia spawns
+            setTimeout(spawnEnemy, 1000); 
+            setTimeout(spawnPowerup, Math.random() * 10000 + 5000);
+            
+            update(); // Inicia o loop do jogo novamente
+        }
+
+        // Inicia o jogo
+        spawnEnemy();
+        spawnPowerup();
+        updateLivesDisplay();
+        update();
+    </script>
+</body>
+</html>
