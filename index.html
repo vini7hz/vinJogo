@@ -1,10 +1,32 @@
-a
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vini um Gostosãa</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #0a0a1a; font-family: 'Press Start 2P', cursive; touch-action: none; user-select: none; -webkit-tap-highlight-color: transparent;}
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap'); /* Fonte de arcade */
+        canvas { display: block; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #00ffcc; font-size: 18px; pointer-events: none; text-shadow: 0 0 8px #00ffcc; display: flex; align-items: center; }
+        #ui span { margin-left: 5px; }
+        #lives { margin-left: 20px; display: flex; align-items: center; }
+        .heart { width: 20px; height: 20px; background-color: #ff0077; clip-path: path("M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"); margin-right: 5px; box-shadow: 0 0 5px #ff0077; }
 
-    <div id="ui">Score: <span id="score">0</span> 
-        <div id="lives">Lives: <div class="heart"></div><div class="heart"></div><div class="heart"></div></div>
+        #msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; text-align: center; display: none; background: rgba(0,0,0,0.8); padding: 30px; border-radius: 10px; border: 2px solid #00ffcc; box-shadow: 0 0 20px #00ffcc; }
+        #msg h1 { color: #ff0077; font-size: 36px; text-shadow: 0 0 15px #ff0077; margin-bottom: 20px; }
+        #msg p { color: #00ffcc; font-size: 16px; margin-bottom: 30px; }
+        button { padding: 15px 35px; font-size: 20px; background: #00ffcc; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; color: #111; font-weight: bold; text-shadow: none; box-shadow: 0 0 10px #00ffcc; transition: all 0.2s ease-in-out; font-family: 'Press Start 2P', cursive; }
+        button:hover { background: #00e6b8; box-shadow: 0 0 20px #00ffcc; transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+
+    <div id="ui">Porntuação: <span id="score">0</span> 
+        <div id="lives">Vidas: <div class="heart"></div><div class="heart"></div><div class="heart"></div></div>
     </div>
     <div id="msg">
-        <h1>GAME OVER!</h1>
+        <h1>VOCE PERDEU SEU BOSTA, SERVE NEM PRA JOGA UM JOGUINHO DESSE! VOCE TEM 3 VIDAS E MESMO ASSIM VOCÊ PERDEU MN(obs: vini é lindo)</h1>
         <p>Sua Pontuação Final: <span id="finalScore">0</span></p>
         <button onclick="resetGame()">Jogar de Novo</button>
     </div>
@@ -34,11 +56,11 @@ a
         let score = 0;
         let lives = 3;
         let gameActive = true;
-        let speed = 3; // Velocidade inicial dos inimigos
-        const maxSpeed = 15; // Velocidade máxima
-        const acceleration = 0.005; // Aceleração do jogo
+        let speed = 3;
+        const maxSpeed = 15; 
+        const acceleration = 0.005;
 
-        // Partículas de fundo
+   
         const particles = [];
         const numParticles = 50;
 
